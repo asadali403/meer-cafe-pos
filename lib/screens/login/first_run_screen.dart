@@ -35,7 +35,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
     final app = context.read<AppController>();
     try {
       final admin = await app.users.createInitialAdmin(_user.text, _name.text, _pass.text);
-      if (_sample) await app.products.loadSampleMenu(admin);
+      if (_sample) await app.products.loadMenu(admin);
       app.signIn(admin);
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(e));
@@ -79,7 +79,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
               onChanged: (v) => setState(() => _sample = v ?? false),
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('Load sample cafe menu (you can edit or delete it later)'),
+              title: const Text("Load Meer's Cafe menu (all items, deals and prices — editable later)"),
             ),
             if (_error != null)
               Padding(

@@ -147,7 +147,7 @@ Future<void> _flow(WidgetTester t) async {
     step('Bill with change');
     // --- Bill with change returned (acceptance 2 & 4), offline ---
     await addFromSearch(t, 'Test Chai', times: 2);
-    await addFromSearch(t, 'Cappuccino');
+    await addFromSearch(t, 'Hot Wings');
     expect(find.text('Rs. 648.00'), findsWidgets); // 2 x 99 + 450
     await enter(t, 'Amount received (Rs.)', '1000');
     expect(find.text('Rs. 352.00'), findsOneWidget);
@@ -160,7 +160,7 @@ Future<void> _flow(WidgetTester t) async {
 
     step('Bill with balance');
     // --- Bill with balance due (acceptance 5) ---
-    await addFromSearch(t, 'Cappuccino');
+    await addFromSearch(t, 'Hot Wings');
     await enter(t, 'Amount received (Rs.)', '200');
     expect(find.text('Balance due'), findsOneWidget);
     expect(find.text('Rs. 250.00'), findsWidgets);

@@ -78,10 +78,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
           if (!_loading && _products.isEmpty && _search.text.isEmpty && _categoryId == null)
             OutlinedButton.icon(
               onPressed: () => _run(() async {
-                await app.products.loadSampleMenu(app.user!);
-              }, 'Sample menu loaded.'),
+                await app.products.loadMenu(app.user!);
+              }, "Meer's Cafe menu loaded."),
               icon: const Icon(Icons.auto_awesome_outlined),
-              label: const Text('Load sample menu'),
+              label: const Text("Load Meer's Cafe menu"),
             ),
           OutlinedButton.icon(
             onPressed: () async {

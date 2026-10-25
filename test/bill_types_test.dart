@@ -26,7 +26,7 @@ void main() {
 
   setUp(() async {
     env = await TestEnv.create();
-    burger = await env.addProduct('Zinger', 550, category: 'Burger');
+    burger = await env.addProduct('Zinger', 550, category: 'Burgers');
     drink = await env.addProduct('Cola', 150, category: 'Drinks');
   });
   tearDown(() async => env.close());

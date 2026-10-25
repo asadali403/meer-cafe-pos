@@ -25,7 +25,7 @@ void main() {
       final app = AppController();
       await app.init();
       final admin = await app.users.createInitialAdmin('admin', 'Print Check', 'Check1234');
-      await app.products.loadSampleMenu(admin);
+      await app.products.loadMenu(admin);
       app.signIn(admin);
       await app.saveSettings({
         'printer_name': printerName,
@@ -41,7 +41,7 @@ void main() {
       int id(String n) => menu.firstWhere((p) => p.name == n).id!;
       final bill = await app.bills.completeBill(admin,
           billId: Ids.newId(),
-          lines: [CartLineInput(id('Zinger Burger'), 1), CartLineInput(id('Masala Fries'), 2), CartLineInput(id('Fresh Lime'), 1)],
+          lines: [CartLineInput(id('Zingister Burger'), 1), CartLineInput(id('Loaded Fries'), 2), CartLineInput(id('Tea'), 1)],
           settings: app.settings,
           amountReceived: 200000,
           customerNote: 'Table 4 - PRINTER TEST');

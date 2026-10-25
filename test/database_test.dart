@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meer_cafe_pos/models/bill.dart';
+import 'package:meer_cafe_pos/models/meers_menu.dart';
 import 'package:meer_cafe_pos/models/product.dart';
 import 'package:meer_cafe_pos/models/user.dart';
 import 'package:meer_cafe_pos/repositories/bill_repository.dart';
-import 'package:meer_cafe_pos/repositories/product_repository.dart';
 import 'package:meer_cafe_pos/utils/errors.dart';
 import 'package:meer_cafe_pos/utils/ids.dart';
 import 'package:path/path.dart' as p;
@@ -61,7 +61,7 @@ void main() {
 
   group('Products', () {
     test('validation rejects negative price and empty name', () async {
-      final cat = await env.category('Tea');
+      final cat = await env.category('Tea & Coffee');
       expect(() => env.products.save(env.admin, Product(name: 'X', categoryId: cat, pricePaisa: -1)),
           throwsA(isA<ValidationException>()));
       expect(() => env.products.save(env.admin, Product(name: '  ', categoryId: cat, pricePaisa: 100)),
@@ -82,7 +82,7 @@ void main() {
       final dir = await Directory.systemTemp.createTemp('meer_test');
       final path = p.join(dir.path, 'persist.db');
       var e = await TestEnv.create(path: path);
-      await e.addProduct('Persistent Chai', 150, category: 'Tea');
+      await e.addProduct('Persistent Chai', 150, category: 'Tea & Coffee');
       await e.close();
       e = await TestEnv.create(path: path, seedUsers: false);
       final list = await e.products.list();
@@ -97,7 +97,7 @@ void main() {
     late int latte, burger;
     setUp(() async {
       latte = await env.addProduct('Latte', 480);
-      burger = await env.addProduct('Burger', 650, category: 'Burger');
+      burger = await env.addProduct('Burger', 650, category: 'Burgers');
     });
 
     Future<Bill> sell({String? id, int received = 300000, int discount = 0, DateTime? at}) =>
@@ -204,7 +204,7 @@ void main() {
 
   group('Invoice numbers', () {
     late int tea;
-    setUp(() async => tea = await env.addProduct('Chai', 120, category: 'Tea'));
+    setUp(() async => tea = await env.addProduct('Chai', 120, category: 'Tea & Coffee'));
 
     Future<Bill> sellAt(DateTime t) => env.bills.completeBill(env.cashier,
         billId: Ids.newId(), lines: [CartLineInput(tea, 1)], settings: env.settings, amountReceived: 12000, now: t);
@@ -221,7 +221,7 @@ void main() {
       final dir = await Directory.systemTemp.createTemp('meer_inv');
       final path = p.join(dir.path, 'inv.db');
       var e = await TestEnv.create(path: path);
-      final pid = await e.addProduct('Chai', 120, category: 'Tea');
+      final pid = await e.addProduct('Chai', 120, category: 'Tea & Coffee');
       final t = DateTime(2026, 10, 9, 12);
       Future<Bill> s(TestEnv x, AppUser user) => x.bills.completeBill(user,
           billId: Ids.newId(), lines: [CartLineInput(pid, 1)], settings: x.settings, amountReceived: 12000, now: t);
@@ -242,7 +242,7 @@ void main() {
       final dir = await Directory.systemTemp.createTemp('meer_bill');
       final path = p.join(dir.path, 'b.db');
       var e = await TestEnv.create(path: path);
-      final pid = await e.addProduct('Chai', 120, category: 'Tea');
+      final pid = await e.addProduct('Chai', 120, category: 'Tea & Coffee');
       final b = await e.bills.completeBill(e.cashier,
           billId: Ids.newId(), lines: [CartLineInput(pid, 3)], settings: e.settings, amountReceived: 20000);
       await e.close();
@@ -258,7 +258,7 @@ void main() {
   });
 
   test('reprint only increments print counter', () async {
-    final pid = await env.addProduct('Chai', 120, category: 'Tea');
+    final pid = await env.addProduct('Chai', 120, category: 'Tea & Coffee');
     final b = await env.bills.completeBill(env.cashier,
         billId: Ids.newId(), lines: [CartLineInput(pid, 1)], settings: env.settings, amountReceived: 12000);
     await env.bills.markPrinted(b.id);
@@ -267,9 +267,26 @@ void main() {
     expect((await env.bills.getBill(b.id))!.printCount, 2);
   });
 
-  test('sample menu loads', () async {
-    final n = await env.products.loadSampleMenu(env.admin);
-    expect(n, sampleMenu.length);
-    expect(() => env.products.loadSampleMenu(env.admin), throwsA(isA<ValidationException>()));
+  test("Meer's Cafe menu loads exactly, without duplicates on a second load", () async {
+    final n = await env.products.loadMenu(env.admin);
+    expect(n, meersMenu.length);
+    expect(n, 64);
+    expect(await env.products.loadMenu(env.admin), 0);
+    final all = await env.products.list(activeOnly: true);
+    expect(all.length, meersMenu.length);
+    for (final m in meersMenu) {
+      final p = all.singleWhere((x) => x.name == m.name, orElse: () => throw 'missing ${m.name}');
+      expect(p.pricePaisa, m.rupees * 100, reason: m.name);
+      expect(p.categoryName, m.category, reason: m.name);
+    }
+    int price(String name) => all.firstWhere((p) => p.name == name).pricePaisa ~/ 100;
+    expect(price('Deal 1'), 649);
+    expect(price('Deal 6'), 2100);
+    expect(price('Full Broast'), 2300);
+    expect(price('Cheese Lover (Large)'), 1399);
+    expect(price('Crave Crown Pizza (Large)'), 1699);
+    expect(price('Pizza Fries'), 750);
+    expect(price('Tea'), 70);
+    expect(() => env.products.loadMenu(env.cashier), throwsA(isA<PermissionDeniedException>()));
   });
 }

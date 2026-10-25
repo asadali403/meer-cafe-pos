@@ -1,6 +1,7 @@
 import '../database/db_utils.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../models/meers_menu.dart';
 import '../models/product.dart';
 import '../models/user.dart';
 import '../utils/dates.dart';
@@ -81,7 +82,7 @@ class ProductRepository {
       args.addAll(['%$q%', '%$q%', '%$q%']);
     }
     final rows = await db.rawQuery(
-        '$_select WHERE ${where.join(' AND ')} ORDER BY c.sort_order, p.name COLLATE NOCASE', args);
+        '$_select WHERE ${where.join(' AND ')} ORDER BY c.sort_order, c.name, p.id', args);
     return rows.map(Product.fromRow).toList();
   }
 
@@ -147,47 +148,67 @@ class ProductRepository {
     });
   }
 
-  /// Loads the bundled sample menu (admin only, only into an empty product list).
-  Future<int> loadSampleMenu(AppUser actor) async {
-    Permissions.requireAdmin(actor, 'load the sample menu');
-    final existing = firstIntValue(
-            await db.rawQuery('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')) ??
-        0;
-    if (existing > 0) throw ValidationException('Sample menu can only be loaded when there are no products.');
-    final cats = {for (final c in await categories(includeInactive: true)) c.name.toLowerCase(): c.id};
-    var n = 0;
-    for (final s in sampleMenu) {
-      final catId = cats[s.$1.toLowerCase()] ?? cats['other']!;
-      await save(actor, Product(name: s.$2, categoryId: catId, pricePaisa: s.$3 * 100, description: s.$4));
-      n++;
-    }
-    return n;
+  /// Loads Meer's Cafe real menu (admin only). Missing categories are created (or
+  /// re-activated) in menu order; items already present (same name and category) are
+  /// left untouched, so running it twice never creates duplicates.
+  /// Returns the number of products added.
+  Future<int> loadMenu(AppUser actor) async {
+    Permissions.requireAdmin(actor, "load Meer's Cafe menu");
+    final now = Dates.dbNow();
+    var added = 0;
+    await db.transaction((txn) async {
+      final catIds = <String, int>{};
+      for (var i = 0; i < meersCategories.length; i++) {
+        final (name, kitchen) = meersCategories[i];
+        final hasItems = meersMenu.any((m) => m.category == name);
+        final rows = await txn.query('categories', where: 'name = ?', whereArgs: [name]); // NOCASE
+        if (rows.isEmpty) {
+          catIds[name] = await txn.insert('categories', {
+            'name': name,
+            'sort_order': i,
+            'active': 1,
+            'kitchen': kitchen ? 1 : 0,
+            'created_at': now,
+            'updated_at': now,
+          });
+        } else {
+          final id = rows.first['id'] as int;
+          catIds[name] = id;
+          await txn.update(
+              'categories',
+              {
+                'name': name,
+                'sort_order': i,
+                if (hasItems) 'active': 1,
+                'updated_at': now,
+              },
+              where: 'id = ?',
+              whereArgs: [id]);
+        }
+      }
+      for (final m in meersMenu) {
+        final catId = catIds[m.category]!;
+        final exists = await txn.query('products',
+            columns: ['id'],
+            where: 'name = ? AND category_id = ? AND deleted_at IS NULL',
+            whereArgs: [m.name, catId]);
+        if (exists.isNotEmpty) continue;
+        final product =
+            Product(name: m.name, categoryId: catId, pricePaisa: m.rupees * 100, description: m.description);
+        validate(product);
+        final id = await txn.insert('products', {
+          'name': m.name,
+          'category_id': catId,
+          'price': m.rupees * 100,
+          'description': m.description,
+          'active': 1,
+          'created_at': now,
+          'updated_at': now,
+        });
+        await enqueueSync(txn, SyncEntity.product, '$id');
+        added++;
+      }
+    });
+    return added;
   }
 }
-
-/// Sample cafe menu: (category, name, price in rupees, description).
-const sampleMenu = <(String, String, int, String)>[
-  ('Tea', 'Doodh Patti', 120, 'Strong milk tea'),
-  ('Tea', 'Karak Chai', 150, 'Cardamom karak tea'),
-  ('Tea', 'Green Tea', 100, 'Light and refreshing'),
-  ('Tea', 'Kashmiri Chai', 250, 'Pink tea with nuts'),
-  ('Coffee', 'Espresso', 300, 'Single shot'),
-  ('Coffee', 'Americano', 350, ''),
-  ('Coffee', 'Cappuccino', 450, ''),
-  ('Coffee', 'Cafe Latte', 480, ''),
-  ('Coffee', 'Iced Caramel Latte', 550, ''),
-  ('Burger', 'Classic Beef Burger', 650, 'With cheese and fries sauce'),
-  ('Burger', 'Zinger Burger', 550, 'Crispy chicken fillet'),
-  ('Burger', 'Grilled Chicken Burger', 600, ''),
-  ('Fries', 'Plain Fries', 250, 'Regular'),
-  ('Fries', 'Masala Fries', 300, ''),
-  ('Fries', 'Loaded Cheese Fries', 450, ''),
-  ('Drinks', 'Mint Margarita', 350, ''),
-  ('Drinks', 'Fresh Lime', 250, ''),
-  ('Drinks', 'Soft Drink (Can)', 150, ''),
-  ('Drinks', 'Mineral Water', 80, '500 ml'),
-  ('Snacks', 'Club Sandwich', 550, ''),
-  ('Snacks', 'Chicken Samosa (2 pcs)', 150, ''),
-  ('Snacks', 'Brownie', 300, ''),
-  ('Other', 'Extra Cheese', 100, 'Add-on'),
-];

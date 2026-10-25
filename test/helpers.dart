@@ -44,7 +44,7 @@ class TestEnv {
   Future<int> category(String name) async =>
       (await products.categories()).firstWhere((c) => c.name == name).id;
 
-  Future<int> addProduct(String name, int rupees, {String category = 'Coffee'}) async =>
+  Future<int> addProduct(String name, int rupees, {String category = 'Tea & Coffee'}) async =>
       products.save(admin, Product(name: name, categoryId: await this.category(category), pricePaisa: rupees * 100));
 
   Future<int> count(String table) async =>

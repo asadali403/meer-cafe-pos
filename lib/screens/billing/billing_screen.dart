@@ -231,7 +231,7 @@ class _BillingScreenState extends State<BillingScreen> {
                 : GridView.builder(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 200, mainAxisExtent: 150, crossAxisSpacing: 14, mainAxisSpacing: 14),
+                        maxCrossAxisExtent: 200, mainAxisExtent: 172, crossAxisSpacing: 14, mainAxisSpacing: 14),
                     itemCount: _products.length,
                     itemBuilder: (_, i) => _productCard(_products[i]),
                   ),
@@ -286,6 +286,11 @@ class _BillingScreenState extends State<BillingScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, height: 1.2)),
+            if (p.description.isNotEmpty)
+              Text(p.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: MeerColors.muted, fontSize: 11, height: 1.2)),
             const SizedBox(height: 4),
             Text(Money.format(p.pricePaisa),
                 style: const TextStyle(color: MeerColors.goldDark, fontWeight: FontWeight.w800, fontSize: 15)),

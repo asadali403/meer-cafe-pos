@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../models/app_settings.dart';
+import '../models/meers_menu.dart';
 import '../utils/dates.dart';
 import 'migrations.dart';
 
@@ -115,13 +116,13 @@ class AppDatabase {
   /// Default categories and settings (no users and no passwords are seeded).
   static Future<void> _seed(Database db) async {
     final now = Dates.dbNow();
-    const cats = ['Tea', 'Coffee', 'Burger', 'Fries', 'Drinks', 'Snacks', 'Other'];
-    for (var i = 0; i < cats.length; i++) {
+    for (var i = 0; i < meersCategories.length; i++) {
+      final (name, kitchen) = meersCategories[i];
       await db.insert('categories', {
-        'name': cats[i],
+        'name': name,
         'sort_order': i,
         'active': 1,
-        'kitchen': cats[i] == 'Drinks' ? 0 : 1,
+        'kitchen': kitchen ? 1 : 0,
         'created_at': now,
         'updated_at': now,
       });
