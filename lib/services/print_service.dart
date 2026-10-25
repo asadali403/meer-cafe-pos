@@ -73,12 +73,36 @@ class PrintService {
     }
   }
 
+  /// Kitchen ticket + customer receipt as ONE print job (one print dialog / one click).
+  /// Falls back to the receipt alone when the bill has no kitchen items.
+  Future<PrintOutcome> printBoth(Bill bill, AppSettings settings, {bool reprint = false}) async {
+    try {
+      final bytes = await ReceiptBuilder.buildBoth(bill, settings, reprint: reprint);
+      final err = await _send(bytes, settings.printerName, bill.invoiceNo, settings);
+      if (err != null) return PrintOutcome(false, '$err The bill is saved — you can reprint it.');
+      await bills.markPrinted(bill.id);
+      return PrintOutcome(
+          true,
+          bill.kitchenItems.isEmpty
+              ? 'Receipt sent to printer (no kitchen items).'
+              : 'Kitchen ticket + customer receipt sent to printer.');
+    } catch (e) {
+      return PrintOutcome(false, 'Printing failed: $e. The bill is saved — you can reprint it from Bills.');
+    }
+  }
+
   /// After a bill is saved: kitchen ticket for the chef (if enabled and there are
-  /// kitchen items), then the customer receipt (if auto-print is on).
+  /// kitchen items) and the customer receipt (if auto-print is on). When both go to the
+  /// same printer they are sent as one job, so only one print click is ever needed.
   Future<PrintOutcome?> printAfterSave(Bill bill, AppSettings settings) async {
+    final kitchenWanted = settings.kitchenTicket && bill.kitchenItems.isNotEmpty;
+    final samePrinter =
+        settings.kitchenPrinterName.isEmpty || settings.kitchenPrinterName == settings.printerName;
+    if (kitchenWanted && settings.autoPrint && samePrinter) return printBoth(bill, settings);
+
     final messages = <String>[];
     var ok = true;
-    if (settings.kitchenTicket && bill.kitchenItems.isNotEmpty) {
+    if (kitchenWanted) {
       final k = await printKitchenTicket(bill, settings);
       ok &= k.ok;
       messages.add(k.message);

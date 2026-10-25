@@ -19,6 +19,14 @@ Future<PrintOutcome> printBillWithFeedback(BuildContext context, Bill bill, {boo
   return out;
 }
 
+/// Prints kitchen ticket + customer receipt together as one job (one click).
+Future<PrintOutcome> printBothWithFeedback(BuildContext context, Bill bill, {bool reprint = false}) async {
+  final app = context.read<AppController>();
+  final out = await app.printer.printBoth(bill, app.settings, reprint: reprint);
+  if (context.mounted) showSnack(context, out.message, error: !out.ok);
+  return out;
+}
+
 /// Prints the chef's kitchen ticket (food items only, no prices).
 Future<PrintOutcome> printKitchenWithFeedback(BuildContext context, Bill bill, {bool reprint = false}) async {
   final app = context.read<AppController>();
@@ -153,7 +161,10 @@ class _BillCompletedDialogState extends State<BillCompletedDialog> {
   Future<void> _doPrint() async {
     setState(() => _printing = true);
     final app = context.read<AppController>();
-    final out = await app.printer.printBill(widget.bill, app.settings, reprint: _print?.ok == true);
+    final reprint = _print?.ok == true;
+    final out = widget.bill.kitchenItems.isNotEmpty
+        ? await app.printer.printBoth(widget.bill, app.settings, reprint: reprint)
+        : await app.printer.printBill(widget.bill, app.settings, reprint: reprint);
     if (mounted) {
       setState(() {
         _print = out;
@@ -231,7 +242,9 @@ class _BillCompletedDialogState extends State<BillCompletedDialog> {
           icon: _printing
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.print_outlined),
-          label: Text(_print?.ok == true ? 'Reprint' : 'Print Receipt'),
+          label: Text(_print?.ok == true
+              ? 'Reprint'
+              : (widget.bill.kitchenItems.isNotEmpty ? 'Print Both' : 'Print Receipt')),
         ),
         ElevatedButton(
           autofocus: true,

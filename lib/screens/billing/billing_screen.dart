@@ -465,13 +465,16 @@ class _BillingScreenState extends State<BillingScreen> {
               final app = context.read<AppController>();
               final fresh = await app.bills.getBill(_lastBill!.id);
               if (fresh == null || !mounted) return;
-              if (v == 'receipt') {
+              if (v == 'both') {
+                await printBothWithFeedback(context, fresh, reprint: fresh.printCount > 0);
+              } else if (v == 'receipt') {
                 await printBillWithFeedback(context, fresh, reprint: fresh.printCount > 0);
               } else {
                 await printKitchenWithFeedback(context, fresh, reprint: true);
               }
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(value: 'both', child: Text('Both (chef + customer)')),
               PopupMenuItem(value: 'receipt', child: Text('Customer receipt')),
               PopupMenuItem(value: 'kitchen', child: Text('Kitchen ticket (chef)')),
             ],

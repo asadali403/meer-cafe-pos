@@ -57,19 +57,38 @@ class ReceiptBuilder {
     return _bundledLogo;
   }
 
+  static pw.Document _newDoc(String title, AppSettings s) => pw.Document(
+        title: title,
+        author: s.cafeName,
+        theme: (_regular != null)
+            ? pw.ThemeData.withFont(base: _regular, bold: _bold ?? _regular, italic: _italic ?? _regular)
+            : null,
+      );
+
+  /// Customer receipt only.
   static Future<Uint8List> build(Bill bill, AppSettings s, {bool reprint = false, PaperSize? paper}) async {
     await _loadFonts();
+    final doc = _newDoc('Receipt ${bill.invoiceNo}', s);
+    await _addReceiptPage(doc, bill, s, reprint: reprint, size: paper ?? s.paper);
+    return doc.save();
+  }
+
+  /// Both slips in ONE print job: page 1 = kitchen ticket for the chef (skipped when the
+  /// bill has no kitchen items), page 2 = customer receipt. One print click prints both.
+  static Future<Uint8List> buildBoth(Bill bill, AppSettings s, {bool reprint = false, PaperSize? paper}) async {
+    await _loadFonts();
     final size = paper ?? s.paper;
+    final doc = _newDoc('Kitchen + Receipt ${bill.invoiceNo}', s);
+    _addKitchenPage(doc, bill, reprint: reprint, size: size);
+    await _addReceiptPage(doc, bill, s, reprint: reprint, size: size);
+    return doc.save();
+  }
+
+  static Future<void> _addReceiptPage(pw.Document doc, Bill bill, AppSettings s,
+      {required bool reprint, required PaperSize size}) async {
     final format = formatFor(size);
     final logoBytes = await _logo(s);
     final base = switch (size) { PaperSize.mm58 => 7.2, PaperSize.mm80 => 8.6, PaperSize.a4 => 10.0 };
-    final doc = pw.Document(
-      title: 'Receipt ${bill.invoiceNo}',
-      author: s.cafeName,
-      theme: (_regular != null)
-          ? pw.ThemeData.withFont(base: _regular, bold: _bold ?? _regular, italic: _italic ?? _regular)
-          : null,
-    );
 
     pw.TextStyle st({double scale = 1, bool bold = false, bool italic = false}) => pw.TextStyle(
           fontSize: base * scale,
@@ -206,21 +225,22 @@ class ReceiptBuilder {
           ? pw.Align(alignment: pw.Alignment.topCenter, child: pw.SizedBox(width: 95 * _mm, child: content))
           : content,
     ));
-    return doc.save();
   }
 
   /// Kitchen ticket (KOT) for the chef: only kitchen items and quantities, large text,
   /// no prices. Returns null when the bill has nothing for the kitchen.
   static Future<Uint8List?> buildKitchenTicket(Bill bill, AppSettings s, {bool reprint = false, PaperSize? paper}) async {
-    final items = bill.kitchenItems;
-    if (items.isEmpty) return null;
+    if (bill.kitchenItems.isEmpty) return null;
     await _loadFonts();
-    final size = paper ?? s.paper;
+    final doc = _newDoc('Kitchen ${bill.invoiceNo}', s);
+    _addKitchenPage(doc, bill, reprint: reprint, size: paper ?? s.paper);
+    return doc.save();
+  }
+
+  static void _addKitchenPage(pw.Document doc, Bill bill, {required bool reprint, required PaperSize size}) {
+    final items = bill.kitchenItems;
+    if (items.isEmpty) return;
     final base = switch (size) { PaperSize.mm58 => 8.5, PaperSize.mm80 => 10.0, PaperSize.a4 => 12.0 };
-    final doc = pw.Document(
-      title: 'Kitchen ${bill.invoiceNo}',
-      theme: (_regular != null) ? pw.ThemeData.withFont(base: _regular, bold: _bold ?? _regular) : null,
-    );
     pw.TextStyle st({double scale = 1, bool bold = false}) =>
         pw.TextStyle(fontSize: base * scale, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal);
     pw.Widget line() => pw.Padding(
@@ -261,6 +281,5 @@ class ReceiptBuilder {
           ? pw.Align(alignment: pw.Alignment.topCenter, child: pw.SizedBox(width: 95 * _mm, child: content))
           : content,
     ));
-    return doc.save();
   }
 }

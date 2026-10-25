@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -124,6 +125,17 @@ void main() {
     await env.products.setCategoryKitchen(env.admin, cats.firstWhere((c) => c.name == 'Drinks').id, true);
     final now = await bill(lines: [CartLineInput(drink, 1)], received: 15000);
     expect(now.kitchenItems.length, 1);
+  });
+
+  test('one print job holds both slips: kitchen ticket + customer receipt', () async {
+    int pages(List<int> pdf) => RegExp(r'/Type\s*/Page[^s]').allMatches(latin1.decode(pdf)).length;
+    final food = await bill(lines: [CartLineInput(burger, 2), CartLineInput(drink, 1)], received: 200000);
+    for (final paper in PaperSize.values) {
+      expect(pages(await ReceiptBuilder.buildBoth(food, env.settings, paper: paper)), 2);
+    }
+    final drinksOnly = await bill(lines: [CartLineInput(drink, 1)], received: 15000);
+    expect(pages(await ReceiptBuilder.buildBoth(drinksOnly, env.settings)), 1, reason: 'receipt only');
+    expect(pages(await ReceiptBuilder.build(food, env.settings)), 1);
   });
 
   test('receipts render for every bill type', () async {

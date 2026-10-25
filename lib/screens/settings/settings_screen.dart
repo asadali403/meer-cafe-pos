@@ -219,7 +219,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _switch('auto_print', 'Print customer receipt automatically when a bill is completed'),
                   const Divider(height: 24),
                   _switch('kitchen_ticket', 'Print kitchen ticket for the chef',
-                      subtitle: 'Food items + quantities only, no prices. Choose categories in Products → Categories.'),
+                      subtitle: 'Food items + quantities only, no prices. Printed together with the customer '
+                          'receipt in one job (one click). Choose categories in Products → Categories.'),
                   if (_v['kitchen_ticket'] == '1')
                     DropdownButtonFormField<String>(
                       initialValue: _v['kitchen_printer_name']!.isEmpty ||

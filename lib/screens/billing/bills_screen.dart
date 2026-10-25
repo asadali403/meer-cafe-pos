@@ -256,13 +256,24 @@ class _BillsScreenState extends State<BillsScreen> {
           style: const TextStyle(color: MeerColors.muted, fontSize: 12)),
       const SizedBox(height: 16),
       Wrap(spacing: 8, runSpacing: 8, children: [
-        ElevatedButton.icon(
+        if (b.kitchenItems.isNotEmpty)
+          ElevatedButton.icon(
+            onPressed: () async {
+              await printBothWithFeedback(context, b, reprint: b.printCount > 0);
+              _load();
+            },
+            icon: const Icon(Icons.print),
+            label: const Text('Print Both (Chef + Customer)'),
+          ),
+        OutlinedButton.icon(
           onPressed: () async {
             await printBillWithFeedback(context, b, reprint: b.printCount > 0);
             _load();
           },
           icon: const Icon(Icons.print_outlined),
-          label: Text(b.printCount > 0 ? 'Reprint' : 'Print'),
+          label: Text(b.kitchenItems.isNotEmpty
+              ? 'Customer Receipt'
+              : (b.printCount > 0 ? 'Reprint' : 'Print')),
         ),
         OutlinedButton.icon(
           onPressed: () async {
