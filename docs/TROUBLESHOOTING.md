@@ -7,6 +7,8 @@
 | Forgot admin password | Another admin can reset it (Users → Reset password). If there is no other admin, restore a backup from before the change, or contact your developer — passwords cannot be recovered, only reset. |
 | "Too many failed attempts" | Wait 5 minutes, or ask an admin to reset the password. |
 | Receipt did not print | The bill is already saved. Check printer power/cable/paper, then **Bills → select bill → Reprint** (or *Print Receipt* on the billing screen). It never creates a second bill. |
+| Thermal printer plugged in but not in the list (shows as "80Series", "POS-80" in Device Manager) | Double-click `Setup Printer.bat`, click **Yes**, then choose *Meer Receipt Printer* in Settings → Printer with Printer type = *Thermal*. |
+| Receipt prints as garbage characters | Settings → Printer → Printer type: use *Thermal* for 58/80 mm receipt printers, *Windows printer driver* for normal/A4 printers. |
 | Printer not in the list | Install the printer's Windows driver, print a Windows test page, then Settings → Printer → refresh. |
 | Receipt is cut off / too small | Settings → Printer → Paper width: choose 58 mm or 80 mm to match your roll. In the printer's Windows *Printing preferences* set paper to the roll width. |
 | Want the Windows print dialog each time | Settings → Printer → "Ask every time". |

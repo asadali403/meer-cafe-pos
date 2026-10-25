@@ -101,22 +101,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _save();
     if (!mounted) return;
     final app = context.read<AppController>();
-    final s = app.settings;
-    try {
-      final bytes = await ReceiptBuilder.build(_sampleBill(), s);
-      final format = ReceiptBuilder.formatFor(s.paper);
-      bool ok;
-      if (s.printerName.isNotEmpty) {
-        final p = _printers.where((p) => p.name == s.printerName);
-        if (p.isEmpty) throw Exception('Printer "${s.printerName}" not found.');
-        ok = await Printing.directPrintPdf(printer: p.first, onLayout: (_) async => bytes, format: format, name: 'Test receipt');
-      } else {
-        ok = await Printing.layoutPdf(onLayout: (_) async => bytes, format: format, name: 'Test receipt');
-      }
-      if (mounted) showSnack(context, ok ? 'Test receipt sent.' : 'Test print was cancelled or failed.', error: !ok);
-    } catch (e) {
-      if (mounted) showError(context, e);
-    }
+    // Same path as a real bill: kitchen ticket + customer receipt in one job.
+    final out = await app.printer.printBoth(_sampleBill(), app.settings);
+    if (mounted) showSnack(context, out.ok ? 'Test print sent: ${out.message}' : out.message, error: !out.ok);
   }
 
   Widget _field(String key, String label, {String? helper, int maxLines = 1}) => Padding(
@@ -216,6 +203,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     items: [for (final p in PaperSize.values) DropdownMenuItem(value: p.name, child: Text(p.label))],
                     onChanged: (v) => setState(() => _v['paper'] = v ?? 'mm80'),
                   ),
+                  if (_v['paper'] != 'a4') ...[
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: _v['printer_mode'] == 'driver' ? 'driver' : 'thermal',
+                      decoration: const InputDecoration(
+                          labelText: 'Printer type',
+                          helperText: 'Thermal = prints directly and cuts the paper after each slip.'),
+                      items: const [
+                        DropdownMenuItem(value: 'thermal', child: Text('Thermal receipt printer (recommended)')),
+                        DropdownMenuItem(value: 'driver', child: Text('Use the Windows printer driver')),
+                      ],
+                      onChanged: (v) => setState(() => _v['printer_mode'] = v ?? 'thermal'),
+                    ),
+                  ],
                   _switch('auto_print', 'Print customer receipt automatically when a bill is completed'),
                   const Divider(height: 24),
                   _switch('kitchen_ticket', 'Print kitchen ticket for the chef',

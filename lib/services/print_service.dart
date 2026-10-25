@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:printing/printing.dart';
@@ -5,6 +6,8 @@ import 'package:printing/printing.dart';
 import '../models/app_settings.dart';
 import '../models/bill.dart';
 import '../repositories/bill_repository.dart';
+import 'escpos.dart';
+import 'raw_printer.dart';
 import 'receipt_builder.dart';
 
 class PrintOutcome {
@@ -40,6 +43,15 @@ class PrintService {
       }
       final printer = matches.first;
       if (!printer.isAvailable) return 'Printer "${printer.name}" is not available. Check the cable/power.';
+      if (settings.directThermal && Platform.isWindows) {
+        // Thermal receipt printer: send ESC/POS directly, cutting after every slip.
+        try {
+          await RawPrinter.send(printerName, await EscPos.fromPdf(bytes, settings.paper), jobName: jobName);
+          return null;
+        } on RawPrinterException catch (e) {
+          return e.message;
+        }
+      }
       ok = await Printing.directPrintPdf(printer: printer, name: jobName, format: format, onLayout: (_) async => bytes);
     } else {
       ok = await Printing.layoutPdf(name: jobName, format: format, onLayout: (_) async => bytes);

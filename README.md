@@ -15,6 +15,11 @@ Google Sheets when internet is available.
 3. Open the extracted folder and double-click **`Install.bat`**.
    *(If Windows shows "Windows protected your PC", click **More info → Run anyway**.)*
 4. Double-click **Meer Cafe POS** on the Desktop. On the first start create the admin account.
+5. **Receipt printer:** plug in the USB thermal printer, switch it on, double-click
+   **`Setup Printer.bat`** and click **Yes**. Then in the app (admin) open
+   **Settings → Printer**: Receipt printer = *Meer Receipt Printer*, Paper = 80 mm,
+   Printer type = *Thermal* → **Save & test print**. Each bill then prints the chef's
+   kitchen ticket and the customer receipt in one go, with a paper cut between them.
 
 The ready-built app is in `dist\MeerCafePOS\` (Windows 10/11, 64-bit). It works offline.
 To move your existing cafe data to the new laptop, make a backup on the old laptop

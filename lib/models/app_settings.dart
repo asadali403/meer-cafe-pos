@@ -35,6 +35,7 @@ class AppSettings {
     'kitchen_ticket': '1',
     'kitchen_printer_name': '',
     'cashier_custom_items': '0',
+    'printer_mode': 'thermal',
   };
 
   String _s(String k) => values[k] ?? defaults[k] ?? '';
@@ -63,6 +64,10 @@ class AppSettings {
     final p = _s('invoice_prefix').trim().toUpperCase();
     return p.isEmpty ? 'MC' : p;
   }
+
+  /// 58/80 mm paper printed directly with thermal printer commands (ESC/POS) and an
+  /// automatic paper cut after each slip. 'driver' = use the Windows printer driver.
+  bool get directThermal => paper != PaperSize.a4 && _s('printer_mode') != 'driver';
 
   /// Print a kitchen ticket (food items, no prices) for the chef with each bill.
   bool get kitchenTicket => _b('kitchen_ticket');
