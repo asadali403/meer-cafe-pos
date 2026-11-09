@@ -51,7 +51,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   (String, String) get _range {
-    final now = DateTime.now();
+    final now = Dates.businessDay(DateTime.now());
     final today = Dates.day(now);
     return switch (_preset) {
       _Preset.today => (today, today),

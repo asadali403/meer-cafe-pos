@@ -26,9 +26,11 @@ IconData categoryIcon(String name) {
 
 /// Fast POS screen: product grid on the left, current bill on the right.
 /// Supports customer sales, personal/staff food and (admin) expense vouchers,
-/// plus hand-typed custom items.
+/// plus hand-typed custom items. With [editBill] it changes a saved bill that is
+/// not fully paid yet (add, change or remove items) and pops with the updated bill.
 class BillingScreen extends StatefulWidget {
-  const BillingScreen({super.key});
+  final Bill? editBill;
+  const BillingScreen({super.key, this.editBill});
   @override
   State<BillingScreen> createState() => _BillingScreenState();
 }
@@ -52,6 +54,12 @@ class _BillingScreenState extends State<BillingScreen> {
     super.initState();
     final app = context.read<AppController>();
     cart = CartController(roundingStep: app.settings.roundingStep)..addListener(() => setState(() {}));
+    final edit = widget.editBill;
+    if (edit != null) {
+      cart.loadBill(edit);
+      _discount.text = cart.discountText;
+      _note.text = cart.customerNote;
+    }
     _load();
   }
 
@@ -89,11 +97,43 @@ class _BillingScreenState extends State<BillingScreen> {
     _note.clear();
   }
 
+  Future<void> _update() async {
+    final app = context.read<AppController>();
+    final old = cart.editing!;
+    final totals = cart.totals;
+    if (totals.total < old.amountPaid) {
+      return showSnack(context,
+          'The new total is less than the ${Money.format(old.amountPaid)} already paid. Remove fewer items.',
+          error: true);
+    }
+    setState(() => _saving = true);
+    try {
+      final bill = await app.bills.updateBill(
+        app.user!,
+        old.id,
+        lines: cart.toInput(),
+        customLines: cart.toCustomInput(),
+        settings: app.settings,
+        discount: cart.discount ?? 0,
+        customerNote: cart.customerNote,
+      );
+      app.sync?.run(trigger: 'bill');
+      if (!mounted) return;
+      await showDialog(context: context, builder: (_) => BillCompletedDialog(bill: bill, updated: true));
+      if (mounted) Navigator.pop(context, bill);
+    } catch (e) {
+      if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _complete() async {
     if (_saving) return; // guard against double clicks
     final app = context.read<AppController>();
     if (cart.isEmpty) return showSnack(context, 'Add at least one item.', error: true);
     if (cart.discountError != null) return showSnack(context, 'Fix the discount: ${cart.discountError}', error: true);
+    if (cart.editing != null) return _update();
     final received = cart.received;
     if (received == null) return showSnack(context, 'Amount received is not a valid number.', error: true);
     final totals = cart.totals;
@@ -175,7 +215,16 @@ class _BillingScreenState extends State<BillingScreen> {
       Padding(
         padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
         child: Row(children: [
-          const Text('New Bill', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+          if (cart.editing != null) ...[
+            IconButton(
+              tooltip: 'Back to Bills without saving',
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back),
+            ),
+            const SizedBox(width: 4),
+          ],
+          Text(cart.editing == null ? 'New Bill' : 'Edit ${cart.editing!.invoiceNo}',
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
           const SizedBox(width: 24),
           Expanded(
             child: TextField(
@@ -398,7 +447,20 @@ class _BillingScreenState extends State<BillingScreen> {
             style: const TextStyle(color: MeerColors.warning, fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ),
-      if (sale) ...[
+      if (cart.editing != null) ...[
+        const SizedBox(height: 6),
+        _totalRow('Already paid', Money.format(cart.editing!.amountPaid)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(color: const Color(0xFFFDE8E8), borderRadius: BorderRadius.circular(12)),
+          child: Row(children: [
+            const Expanded(child: Text('Balance due', style: TextStyle(fontWeight: FontWeight.w700))),
+            Text(Money.format(totals.total - cart.editing!.amountPaid),
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: MeerColors.danger)),
+          ]),
+        ),
+      ] else if (sale) ...[
         const SizedBox(height: 10),
         Row(children: [
           Expanded(
@@ -462,6 +524,7 @@ class _BillingScreenState extends State<BillingScreen> {
       ),
       const SizedBox(height: 12),
       Row(children: [
+        if (cart.editing == null) ...[
         Expanded(
           child: PopupMenuButton<String>(
             enabled: _lastBill != null,
@@ -493,6 +556,7 @@ class _BillingScreenState extends State<BillingScreen> {
           ),
         ),
         const SizedBox(width: 10),
+        ],
         Expanded(
           flex: 2,
           child: ElevatedButton.icon(
@@ -502,6 +566,8 @@ class _BillingScreenState extends State<BillingScreen> {
                 : const Icon(Icons.check_circle_outline),
             label: Text(_saving
                 ? 'Saving...'
+                : cart.editing != null
+                ? 'Update Bill (F9)'
                 : switch (cart.type) {
                     BillType.sale => 'Complete Bill (F9)',
                     BillType.personal => 'Save Personal (F9)',
@@ -510,7 +576,7 @@ class _BillingScreenState extends State<BillingScreen> {
           ),
         ),
       ]),
-      if (_lastBill != null)
+      if (_lastBill != null && cart.editing == null)
         Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Text('Last: ${_lastBill!.invoiceNo} · ${Money.format(_lastBill!.total)}',
@@ -531,7 +597,8 @@ class _BillingScreenState extends State<BillingScreen> {
             child: Row(children: [
               const Icon(Icons.receipt_long, color: MeerColors.gold),
               const SizedBox(width: 10),
-              const Text('Current Bill', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+              Text(cart.editing == null ? 'Current Bill' : 'Editing Bill',
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(width: 8),
               Text('${cart.itemCount} item(s)', style: const TextStyle(color: MeerColors.goldLight)),
               const Spacer(),
@@ -550,7 +617,7 @@ class _BillingScreenState extends State<BillingScreen> {
               ),
             ]),
           ),
-          _typeSelector(),
+          if (cart.editing == null) _typeSelector(),
           Expanded(
             child: cart.isEmpty
                 ? EmptyState(

@@ -9,6 +9,7 @@ import '../../utils/dates.dart';
 import '../../utils/money.dart';
 import '../../widgets/bill_dialogs.dart';
 import '../../widgets/common.dart';
+import 'billing_screen.dart';
 
 enum _Range { today, week, month, all, custom }
 
@@ -38,7 +39,7 @@ class _BillsScreenState extends State<BillsScreen> {
   }
 
   (String?, String?) _dates() {
-    final now = DateTime.now();
+    final now = Dates.businessDay(DateTime.now());
     return switch (_range) {
       _Range.today => (Dates.day(now), Dates.day(now)),
       _Range.week => (Dates.day(now.subtract(const Duration(days: 6))), Dates.day(now)),
@@ -78,6 +79,36 @@ class _BillsScreenState extends State<BillsScreen> {
   Future<void> _select(Bill b) async {
     final full = await context.read<AppController>().bills.getBill(b.id);
     if (mounted) setState(() => _selected = full);
+  }
+
+  /// Opens the billing screen on this bill to add, change or remove items.
+  Future<void> _edit(Bill b) async {
+    final updated = await Navigator.push<Bill>(
+        context, MaterialPageRoute(builder: (_) => Scaffold(body: BillingScreen(editBill: b))));
+    if (updated != null) _load(keepSelected: updated.id);
+  }
+
+  Future<void> _delete(Bill b) async {
+    final ok = await confirm(
+      context,
+      'Delete ${b.invoiceNo}?',
+      'This unpaid bill of ${Money.format(b.total)} will be removed permanently.\n'
+          'It will no longer appear in bills or reports.',
+      ok: 'Delete bill',
+      danger: true,
+    );
+    if (!ok || !mounted) return;
+    final app = context.read<AppController>();
+    try {
+      await app.bills.deleteBill(app.user!, b.id);
+      app.sync?.run(trigger: 'bill');
+      if (!mounted) return;
+      setState(() => _selected = null);
+      showSnack(context, '${b.invoiceNo} deleted.');
+      _load();
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
   }
 
   @override
@@ -301,6 +332,19 @@ class _BillsScreenState extends State<BillsScreen> {
             },
             icon: const Icon(Icons.payments_outlined),
             label: const Text('Part payment'),
+          ),
+        if (b.isSale && b.balanceDue > 0)
+          OutlinedButton.icon(
+            onPressed: () => _edit(b),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Edit / Add items'),
+          ),
+        if (b.isSale && b.amountPaid == 0)
+          OutlinedButton.icon(
+            onPressed: () => _delete(b),
+            style: OutlinedButton.styleFrom(foregroundColor: MeerColors.danger),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Delete'),
           ),
       ]),
       const Divider(height: 32),

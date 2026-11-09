@@ -17,6 +17,8 @@
 var SHEETS = ['Products', 'Bills', 'BillItems', 'Payments', 'DailySummary', 'SyncLog'];
 var MAX_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000; // tolerate laptop clock drift; replays are harmless (idempotent)
 var MAX_RECORDS = 200;
+var MENU_TITLE = 'Meer Cafe';
+var MENU_TAGLINE = 'Our Circle. Your Place.';
 
 function doPost(e) {
   try {
@@ -61,8 +63,58 @@ function doPost(e) {
   }
 }
 
+/**
+ * Opening the web app URL (e.g. by scanning the QR code on a receipt) shows the
+ * cafe menu, built from the active products in the "Products" sheet.
+ */
 function doGet() {
-  return json_({ ok: true, service: 'Meer Cafe POS sync endpoint', note: 'Use POST.' });
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Products');
+  var values = sh && sh.getLastRow() >= 2 ? sh.getDataRange().getValues() : [];
+  var head = values.length ? values[0].map(String) : [];
+  var col = function (name) { return head.indexOf(name); };
+  var rows = values.slice(1).filter(function (r) {
+    return r[col('name')] !== '' && r[col('active')] !== 'NO' && r[col('deleted')] !== 'YES';
+  });
+  rows.sort(function (a, b) { return Number(a[col('id')]) - Number(b[col('id')]); });
+
+  var groups = {};
+  var order = [];
+  rows.forEach(function (r) {
+    var c = String(r[col('category')] || 'Menu');
+    if (!groups[c]) { groups[c] = []; order.push(c); }
+    groups[c].push(r);
+  });
+
+  var html = '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>' + esc_(MENU_TITLE) + '</title><style>' +
+    'body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#111;color:#f5f0e1}' +
+    'header{text-align:center;padding:28px 16px 12px}h1{margin:0;color:#d4a937;font-size:28px}' +
+    'header p{margin:6px 0 0;color:#bbb;font-size:14px}main{max-width:640px;margin:0 auto;padding:0 16px 32px}' +
+    'h2{color:#d4a937;font-size:19px;border-bottom:1px solid #333;padding-bottom:6px;margin:26px 0 6px}' +
+    '.i{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #222}' +
+    '.n{font-weight:600}.d{color:#aaa;font-size:13px;margin-top:2px}.p{color:#d4a937;font-weight:700;white-space:nowrap}' +
+    '</style></head><body><header><h1>' + esc_(MENU_TITLE) + '</h1><p>' + esc_(MENU_TAGLINE) + '</p></header><main>';
+  if (!order.length) html += '<p style="text-align:center;color:#aaa">The menu is being updated. Please ask our staff.</p>';
+  order.forEach(function (c) {
+    html += '<h2>' + esc_(c) + '</h2>';
+    groups[c].forEach(function (r) {
+      var desc = col('description') >= 0 ? String(r[col('description')] || '') : '';
+      html += '<div class="i"><div><div class="n">' + esc_(r[col('name')]) + '</div>' +
+        (desc ? '<div class="d">' + esc_(desc) + '</div>' : '') + '</div>' +
+        '<div class="p">Rs. ' + Number(r[col('price')] || 0).toLocaleString('en-US') + '</div></div>';
+    });
+  });
+  html += '<p style="text-align:center;color:#777;font-size:12px;margin-top:28px">Prices in Pakistani Rupees (PKR)</p></main></body></html>';
+  return HtmlService.createHtmlOutput(html)
+    .setTitle(MENU_TITLE)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function esc_(v) {
+  return String(v).replace(/[&<>"']/g, function (ch) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+  });
 }
 
 /** Run once from the Apps Script editor. Creates sheets and the shared secret. */

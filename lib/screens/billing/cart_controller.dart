@@ -12,7 +12,7 @@ import '../../utils/money.dart';
 /// One cart line: either a menu product or a hand-typed custom item.
 class CartLine {
   final String key;
-  final Product? product;
+  final int? productId;
   final String name;
   final int unitPrice;
   final bool kitchen; // custom items only; products use their category setting
@@ -20,16 +20,25 @@ class CartLine {
 
   CartLine.product(Product p, this.quantity)
       : key = 'p${p.id}',
-        product = p,
+        productId = p.id,
         name = p.name,
         unitPrice = p.pricePaisa,
         kitchen = true;
 
   CartLine.custom(this.name, this.unitPrice, this.quantity, {this.kitchen = false})
       : key = 'c${Ids.newId()}',
-        product = null;
+        productId = null;
 
-  bool get isCustom => product == null;
+  /// A line already saved on a bill that is being edited; keeps its billed price.
+  CartLine.saved(BillItem i)
+      : key = !i.isCustom && i.productId != null ? 'p${i.productId}' : 'c${Ids.newId()}',
+        productId = i.isCustom ? null : i.productId,
+        name = i.productName,
+        unitPrice = i.unitPrice,
+        kitchen = i.kitchen,
+        quantity = i.quantity;
+
+  bool get isCustom => productId == null;
   int get lineTotal => unitPrice * quantity;
 }
 
@@ -43,6 +52,9 @@ class CartController extends ChangeNotifier {
 
   /// Idempotency key for the bill being built; renewed after each completed bill.
   String billId = Ids.newId();
+
+  /// The saved bill being changed, or null when building a new bill.
+  Bill? editing;
 
   BillType type = BillType.sale;
   String discountText = '';
@@ -64,6 +76,28 @@ class CartController extends ChangeNotifier {
     } else if (l.quantity < BillingCalculator.maxQuantity) {
       l.quantity++;
     }
+    notifyListeners();
+  }
+
+  /// Loads a saved, not fully paid bill so items can be added, changed or removed.
+  void loadBill(Bill b) {
+    _lines.clear();
+    for (final i in b.items) {
+      final l = CartLine.saved(i);
+      final same = _lines[l.key];
+      if (same != null) {
+        same.quantity += l.quantity;
+      } else {
+        _lines[l.key] = l;
+      }
+    }
+    editing = b;
+    billId = b.id;
+    type = BillType.sale;
+    discountText = b.discount > 0 ? Money.input(b.discount) : '';
+    discountIsPercent = false;
+    receivedText = '';
+    customerNote = b.customerNote;
     notifyListeners();
   }
 
@@ -153,7 +187,7 @@ class CartController extends ChangeNotifier {
 
   List<CartLineInput> toInput() => [
         for (final l in _lines.values)
-          if (!l.isCustom) CartLineInput(l.product!.id!, l.quantity)
+          if (!l.isCustom) CartLineInput(l.productId!, l.quantity)
       ];
 
   List<CustomLineInput> toCustomInput() => [

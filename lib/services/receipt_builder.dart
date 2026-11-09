@@ -200,12 +200,12 @@ class ReceiptBuilder {
             child: pw.Text(statusLabel, style: st(bold: true, scale: 1.2)),
           ),
         ),
-        if (s.showQr) ...[
+        if (s.showQr && s.menuUrl.isNotEmpty) ...[
           pw.SizedBox(height: 5),
           pw.Center(
             child: pw.BarcodeWidget(
               barcode: pw.Barcode.qrCode(),
-              data: 'MEERCAFE|${bill.invoiceNo}|${Money.plain(bill.total)}',
+              data: s.menuUrl,
               width: size == PaperSize.mm58 ? 18 * _mm : 22 * _mm,
               height: size == PaperSize.mm58 ? 18 * _mm : 22 * _mm,
             ),

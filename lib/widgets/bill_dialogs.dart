@@ -139,11 +139,12 @@ Future<void> showReceiptPreview(BuildContext context, Bill bill, {bool reprint =
   );
 }
 
-/// Shown after a bill is saved.
+/// Shown after a bill is saved, or after an unpaid bill was edited ([updated]).
 class BillCompletedDialog extends StatefulWidget {
   final Bill bill;
   final PrintOutcome? printOutcome;
-  const BillCompletedDialog({super.key, required this.bill, this.printOutcome});
+  final bool updated;
+  const BillCompletedDialog({super.key, required this.bill, this.printOutcome, this.updated = false});
   @override
   State<BillCompletedDialog> createState() => _BillCompletedDialogState();
 }
@@ -188,7 +189,7 @@ class _BillCompletedDialogState extends State<BillCompletedDialog> {
             child: Icon(Icons.check_rounded, size: 40, color: MeerColors.black),
           ),
           const SizedBox(height: 12),
-          Text(b.isSale ? 'Bill saved' : '${b.billType.label} saved',
+          Text(widget.updated ? 'Bill updated' : (b.isSale ? 'Bill saved' : '${b.billType.label} saved'),
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
           Text(b.invoiceNo, style: const TextStyle(color: MeerColors.muted, fontWeight: FontWeight.w600)),
           const SizedBox(height: 18),
@@ -233,7 +234,7 @@ class _BillCompletedDialogState extends State<BillCompletedDialog> {
         if (b.kitchenItems.isNotEmpty)
           OutlinedButton.icon(
             onPressed: () => printKitchenWithFeedback(context, b,
-                reprint: context.read<AppController>().settings.kitchenTicket),
+                reprint: widget.updated || context.read<AppController>().settings.kitchenTicket),
             icon: const Icon(Icons.soup_kitchen_outlined),
             label: const Text('Kitchen Ticket'),
           ),
@@ -249,7 +250,7 @@ class _BillCompletedDialogState extends State<BillCompletedDialog> {
         ElevatedButton(
           autofocus: true,
           onPressed: () => Navigator.pop(context),
-          child: const Text('New Bill'),
+          child: Text(widget.updated ? 'Done' : 'New Bill'),
         ),
       ],
     );

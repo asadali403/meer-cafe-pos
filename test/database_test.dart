@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meer_cafe_pos/database/migrations.dart';
 import 'package:meer_cafe_pos/models/bill.dart';
 import 'package:meer_cafe_pos/models/meers_menu.dart';
 import 'package:meer_cafe_pos/models/product.dart';
 import 'package:meer_cafe_pos/models/user.dart';
 import 'package:meer_cafe_pos/repositories/bill_repository.dart';
+import 'package:meer_cafe_pos/utils/dates.dart';
 import 'package:meer_cafe_pos/utils/errors.dart';
 import 'package:meer_cafe_pos/utils/ids.dart';
 import 'package:path/path.dart' as p;
@@ -215,6 +217,53 @@ void main() {
       expect((await sellAt(d1.add(const Duration(minutes: 5)))).invoiceNo, 'MC-20261009-0002');
       expect((await sellAt(DateTime(2026, 10, 10, 9))).invoiceNo, 'MC-20261010-0001');
       expect((await sellAt(d1.add(const Duration(hours: 3)))).invoiceNo, 'MC-20261009-0003');
+    });
+
+    test('the business day resets at 5 AM, not midnight', () async {
+      expect((await sellAt(DateTime(2026, 10, 9, 23, 30))).invoiceNo, 'MC-20261009-0001');
+      final late = await sellAt(DateTime(2026, 10, 10, 4, 59));
+      expect(late.invoiceNo, 'MC-20261009-0002');
+      expect(late.businessDate, '2026-10-09');
+      final morning = await sellAt(DateTime(2026, 10, 10, 5));
+      expect(morning.invoiceNo, 'MC-20261010-0001');
+      expect(morning.businessDate, '2026-10-10');
+    });
+
+    test('upgrade moves old late-night bills to the previous day and keeps their numbers', () async {
+      // Recreate bills saved under the old midnight rule.
+      Future<Bill> oldRule(DateTime t, String invoiceNo, int seq) async {
+        final b = await sellAt(t);
+        await env.db.update('bills', {'invoice_no': invoiceNo, 'invoice_seq': seq, 'business_date': Dates.day(t)},
+            where: 'id = ?', whereArgs: [b.id]);
+        await env.db.update('payments', {'business_date': Dates.day(t)}, where: 'bill_id = ?', whereArgs: [b.id]);
+        return b;
+      }
+
+      await sellAt(DateTime(2026, 10, 9, 12));
+      final late = await oldRule(DateTime(2026, 10, 10, 0, 30), 'MC-20261010-0001', 1);
+      final noon = await oldRule(DateTime(2026, 10, 10, 12), 'MC-20261010-0002', 2);
+      final late2 = await oldRule(DateTime(2026, 10, 11, 1), 'MC-20261011-0001', 1);
+
+      await env.db.transaction((txn) async {
+        for (final sql in migrations[2]) {
+          await txn.execute(sql);
+        }
+      });
+
+      Future<Map<String, Object?>> row(Bill b) async =>
+          (await env.db.query('bills', where: 'id = ?', whereArgs: [b.id])).first;
+      expect(await row(late), containsPair('business_date', '2026-10-09'));
+      expect(await row(late), containsPair('invoice_seq', 2));
+      expect(await row(late), containsPair('invoice_no', 'MC-20261010-0001'));
+      expect(await row(noon), containsPair('business_date', '2026-10-10'));
+      expect(await row(noon), containsPair('invoice_seq', 2));
+      expect(await row(late2), containsPair('business_date', '2026-10-10'));
+      expect(await row(late2), containsPair('invoice_seq', 3));
+      final pay = await env.db.query('payments', where: 'bill_id = ?', whereArgs: [late.id]);
+      expect(pay.single['business_date'], '2026-10-09');
+
+      // Oct 11's only bill moved away, but its printed number is still taken.
+      expect((await sellAt(DateTime(2026, 10, 11, 9))).invoiceNo, 'MC-20261011-0002');
     });
 
     test('numbering continues after app restart (no collisions)', () async {

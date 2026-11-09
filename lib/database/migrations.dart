@@ -145,6 +145,30 @@ const List<List<String>> migrations = [
     'ALTER TABLE categories ADD COLUMN kitchen INTEGER NOT NULL DEFAULT 1',
     "UPDATE categories SET kitchen = 0 WHERE name IN ('Drinks')",
   ],
+  // ---------------- Version 3 ----------------
+  // The business day now starts at 5 AM. Bills and payments made between midnight
+  // and 5 AM under the old rule move back to the previous day. Their printed invoice
+  // numbers are kept; they get the next free sequence numbers of that day.
+  [
+    "UPDATE payments SET business_date = date(created_at, '-5 hours') "
+        "WHERE business_date <> date(created_at, '-5 hours')",
+    '''
+    CREATE TEMP TABLE _moved_bills AS
+    SELECT b.id, date(b.created_at, '-5 hours') AS day,
+      (SELECT COALESCE(MAX(x.invoice_seq), 0) FROM bills x
+        WHERE x.business_date = date(b.created_at, '-5 hours')
+          AND x.business_date = date(x.created_at, '-5 hours'))
+      + ROW_NUMBER() OVER (PARTITION BY date(b.created_at, '-5 hours') ORDER BY b.created_at, b.invoice_seq) AS seq
+    FROM bills b WHERE b.business_date <> date(b.created_at, '-5 hours')''',
+    // Park moved bills on unique negative numbers first so no step breaks UNIQUE (business_date, invoice_seq).
+    'UPDATE bills SET invoice_seq = -rowid WHERE id IN (SELECT id FROM _moved_bills)',
+    '''
+    UPDATE bills SET
+      business_date = (SELECT day FROM _moved_bills m WHERE m.id = bills.id),
+      invoice_seq = (SELECT seq FROM _moved_bills m WHERE m.id = bills.id)
+    WHERE id IN (SELECT id FROM _moved_bills)''',
+    'DROP TABLE _moved_bills',
+  ],
 ];
 
 int get schemaVersion => migrations.length;

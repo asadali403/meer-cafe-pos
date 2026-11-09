@@ -60,6 +60,53 @@ void main() {
     expect(() => env.bills.markPaid(env.admin, b.id), throwsA(isA<ValidationException>()));
   });
 
+  test('unpaid bill: items can be added and removed, invoice and old prices kept', () async {
+    final b = await bill(lines: [CartLineInput(burger, 1)]);
+    await env.products.save(env.admin, (await env.products.byId(burger))!.copyWith(pricePaisa: 60000));
+    final up = await env.bills.updateBill(env.admin, b.id,
+        lines: [CartLineInput(burger, 2), CartLineInput(drink, 1)],
+        customLines: const [CustomLineInput('Extra cheese', 10000, 1)],
+        settings: env.settings);
+    expect(up.invoiceNo, b.invoiceNo);
+    expect(up.items.length, 3);
+    expect(up.items.first.unitPrice, 55000); // billed price kept after the menu price changed
+    expect(up.total, 2 * 55000 + 15000 + 10000);
+    expect(up.balanceDue, up.total);
+    expect(up.paymentStatus, PaymentStatus.unpaid);
+
+    final smaller = await env.bills.updateBill(env.admin, b.id, lines: [CartLineInput(drink, 1)], settings: env.settings);
+    expect(smaller.items.single.productName, 'Cola');
+    expect(smaller.total, 15000);
+    expect(await env.count('bill_items'), 1);
+  });
+
+  test('partly paid bill can be edited but not below what was paid; paid bills are locked', () async {
+    final b = await bill(lines: [CartLineInput(burger, 2)], received: 50000);
+    expect(b.paymentStatus, PaymentStatus.partial);
+    expect(() => env.bills.updateBill(env.admin, b.id, lines: [CartLineInput(drink, 1)], settings: env.settings),
+        throwsA(isA<ValidationException>()));
+    final up = await env.bills
+        .updateBill(env.admin, b.id, lines: [CartLineInput(burger, 2), CartLineInput(drink, 1)], settings: env.settings);
+    expect(up.balanceDue, 2 * 55000 + 15000 - 50000);
+    expect(() => env.bills.deleteBill(env.admin, b.id), throwsA(isA<ValidationException>()));
+
+    final paid = await bill(received: 55000);
+    expect(() => env.bills.updateBill(env.admin, paid.id, lines: [CartLineInput(drink, 1)], settings: env.settings),
+        throwsA(isA<ValidationException>()));
+    expect(() => env.bills.deleteBill(env.admin, paid.id), throwsA(isA<ValidationException>()));
+  });
+
+  test('unpaid bill can be deleted, only by its cashier or an admin', () async {
+    final mine = await bill(actor: env.cashier);
+    final adminBill = await bill();
+    expect(() => env.bills.deleteBill(env.cashier, adminBill.id), throwsA(isA<PermissionDeniedException>()));
+    await env.bills.deleteBill(env.cashier, mine.id);
+    expect(await env.bills.getBill(mine.id), isNull);
+    expect(await env.count('bill_items'), 1);
+    final s = await ReportRepository(env.db).summary(env.admin, today, today);
+    expect(s.bills, 1);
+  });
+
   test('personal food: own voucher number, no payment, kept out of sales', () async {
     await bill(received: 55000); // a real sale
     final pf = await bill(type: BillType.personal, received: 99999);

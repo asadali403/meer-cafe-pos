@@ -87,6 +87,21 @@ void main() {
     expect(c.failed, 0);
   });
 
+  test('edited and deleted unpaid bills upload rows marked deleted, never fail', () async {
+    final id = await sell(received: 0);
+    await sync.run(force: true);
+    final oldItem = server.sheets['BillItems']!.keys.single;
+    await env.bills.updateBill(env.cashier, id, lines: [CartLineInput(latte, 3)], settings: env.settings);
+    await sync.run(force: true);
+    expect(server.sheets['BillItems']![oldItem]!['deleted'], 'YES');
+    expect(server.sheets['Bills']![id]!['total'], 3 * 480.0);
+    await env.bills.deleteBill(env.cashier, id);
+    await sync.run(force: true);
+    expect(server.sheets['Bills']![id]!['deleted'], 'YES');
+    expect(server.sheets['BillItems']!.values.every((r) => r['deleted'] == 'YES'), isTrue);
+    expect((await sync.refreshCounts()).failed, 0);
+  });
+
   test('offline: records stay queued, nothing marked synced, then retry succeeds once', () async {
     sync = SyncService(db: env.db, loadSettings: env.settingsRepo.load, transportFor: (_) => server);
     final billId = await sell();

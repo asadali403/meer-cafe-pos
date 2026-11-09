@@ -61,6 +61,17 @@ Meer Cafe POS (laptop)  --HTTPS + HMAC signature-->  Google Apps Script web app 
 3. Reconnect → click **Sync Now** (or wait) → each bill appears **exactly once**.
 4. Record a payment on a partially paid bill → the same Bills row changes to PAID.
 
+## Menu QR code on receipts
+
+The QR code printed on each receipt opens the cafe menu. Opening the Web app URL in a
+browser shows the active products from the **Products** sheet, grouped by category, so a
+price change in POS appears on the menu after the next sync. To use a different menu page
+instead, enter its link in POS → **Settings → Menu link for the QR code**. Without sync
+and without a menu link, no QR code is printed.
+
+Deleted unpaid bills, and items removed when an unpaid bill is edited, stay in the
+**Bills** / **BillItems** sheets with `deleted` = `YES`.
+
 ## Changing the secret
 
 Apps Script editor → run **rotateSecret** → copy the new secret from the log → paste it

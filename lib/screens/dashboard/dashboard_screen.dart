@@ -30,7 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _load() async {
     final app = context.read<AppController>();
     final u = app.user!;
-    final d = Dates.day(DateTime.now());
+    final d = Dates.businessDate(DateTime.now());
     try {
       final today = await app.reports.summary(u, d, d);
       final outstanding = await app.reports.totalOutstanding(u);
@@ -81,7 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return ListView(children: [
       PageHeader(
         title: 'Dashboard',
-        subtitle: 'Today · ${Dates.displayDay(Dates.day(DateTime.now()))}',
+        subtitle: 'Today · ${Dates.displayDay(Dates.businessDate(DateTime.now()))}',
         actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh')],
       ),
       Padding(

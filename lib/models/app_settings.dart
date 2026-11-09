@@ -22,6 +22,7 @@ class AppSettings {
     'phone': '',
     'thank_you': 'Thank you for visiting Meer Cafe!',
     'show_qr': '1',
+    'menu_url': '',
     'paper': 'mm80',
     'printer_name': '',
     'auto_print': '1',
@@ -49,6 +50,14 @@ class AppSettings {
   String get phone => _s('phone');
   String get thankYou => _s('thank_you');
   bool get showQr => _b('show_qr');
+
+  /// Web address the receipt QR code opens: the cafe menu. Defaults to the Google
+  /// Sheets web app, which shows the menu from the synced Products sheet.
+  String get menuUrl {
+    final u = _s('menu_url').trim();
+    if (u.isNotEmpty) return u;
+    return syncConfigured ? syncUrl : '';
+  }
   PaperSize get paper => PaperSize.parse(_s('paper'));
   String get printerName => _s('printer_name');
   bool get autoPrint => _b('auto_print');

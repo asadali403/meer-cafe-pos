@@ -37,6 +37,15 @@ class Dates {
 
   static DateTime startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
 
+  /// The cafe's day closes at 5 AM, not midnight: a bill at 2 AM belongs to the previous day.
+  static const businessDayStartHour = 5;
+
+  /// Calendar day (midnight) of the business day that [d] falls in.
+  static DateTime businessDay(DateTime d) =>
+      startOfDay(DateTime(d.year, d.month, d.day, d.hour - businessDayStartHour, d.minute, d.second));
+
+  static String businessDate(DateTime d) => day(businessDay(d));
+
   /// Monday of the week containing [d].
   static DateTime startOfWeek(DateTime d) =>
       startOfDay(d).subtract(Duration(days: d.weekday - DateTime.monday));

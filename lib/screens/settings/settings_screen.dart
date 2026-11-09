@@ -29,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     final s = context.read<AppController>().settings;
     _v = {...AppSettings.defaults, ...s.values};
-    for (final k in ['cafe_name', 'tagline', 'address', 'phone', 'thank_you', 'cashier_max_discount_pct', 'invoice_prefix']) {
+    for (final k in ['cafe_name', 'tagline', 'address', 'phone', 'thank_you', 'cashier_max_discount_pct', 'invoice_prefix', 'menu_url']) {
       _ctl[k] = TextEditingController(text: _v[k]);
     }
     _refreshPrinters();
@@ -53,6 +53,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final pct = int.tryParse(_v['cashier_max_discount_pct']!);
     if (pct == null || pct < 0 || pct > 100) return showSnack(context, 'Cashier discount limit must be 0-100.', error: true);
     if (_v['cafe_name']!.isEmpty) return showSnack(context, 'Cafe name is required.', error: true);
+    final menu = _v['menu_url']!;
+    if (menu.isNotEmpty && !RegExp(r'^https?://\S+$').hasMatch(menu)) {
+      return showSnack(context, 'Menu link must start with https://', error: true);
+    }
     if (!RegExp(r'^[A-Za-z]{1,6}$').hasMatch(_v['invoice_prefix']!)) {
       return showSnack(context, 'Invoice prefix must be 1-6 letters.', error: true);
     }
@@ -146,7 +150,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _field('address', 'Address', maxLines: 2),
                 _field('phone', 'Phone number'),
                 _field('thank_you', 'Thank-you message'),
-                _switch('show_qr', 'Print QR code with invoice reference'),
+                _switch('show_qr', 'Print menu QR code on receipt',
+                    subtitle: 'Customers scan it to open the cafe menu.'),
+                _field('menu_url', 'Menu link for the QR code (optional)',
+                    helper: 'Leave empty to use the Google Sheets menu page (Sync must be set up).\n'
+                        'No link = no QR code is printed.',
+                    maxLines: 1),
                 Row(children: [
                   Expanded(
                     child: Text(

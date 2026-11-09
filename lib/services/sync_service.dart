@@ -238,6 +238,10 @@ class SyncService extends ChangeNotifier {
 
   static double _rs(Object? paisa) => ((paisa as int?) ?? 0) / 100.0;
 
+  /// Bills and bill items are only ever removed by editing or deleting an unpaid
+  /// bill, so a missing row is uploaded as a deleted marker instead of failing.
+  static Map<String, Object?> _deletedRow(String id) => {'id': id, 'deleted': 'YES', 'updated_at': Dates.dbNow()};
+
   /// Builds the current snapshot of an entity as a worksheet row.
   Future<SyncRecord?> _build(Map<String, Object?> q) async {
     final type = q['entity_type'] as String;
@@ -292,7 +296,10 @@ class SyncService extends ChangeNotifier {
               _ => 'UNPAID',
             },
             'updated_at': b['updated_at'],
+            'deleted': 'NO',
           };
+        } else {
+          row = _deletedRow(id); // unpaid bill deleted in the POS
         }
       case SyncEntity.billItem:
         final r = await db.rawQuery('''
@@ -311,7 +318,10 @@ class SyncService extends ChangeNotifier {
             'unit_price': _rs(i['unit_price']),
             'line_total': _rs(i['line_total']),
             'custom_item': i['is_custom'] == 1 ? 'YES' : 'NO',
+            'deleted': 'NO',
           };
+        } else {
+          row = _deletedRow(id); // removed when a bill was edited or deleted
         }
       case SyncEntity.payment:
         final r = await db.rawQuery('''
