@@ -52,3 +52,6 @@ app.*.map.json
 *.db-wal
 *.db-shm
 *.csv
+
+# Exception: allow the initial seed database bundled with the installer
+!dist/MeerCafePOS/initial_data/meer_cafe.db

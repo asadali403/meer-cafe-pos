@@ -37,6 +37,19 @@ Copy-Item (Join-Path $release '*') $dest -Recurse -Force
 # Windows does not block the app's DLLs.
 Get-ChildItem $dest -Recurse -File | Unblock-File
 
+# --- Seed the database with cafe menu & data if this is a fresh install ---
+$dataDir = Join-Path $env:APPDATA 'MeerCafePOS\data'
+$dbFile  = Join-Path $dataDir 'meer_cafe.db'
+$seedDb  = Join-Path $release 'initial_data\meer_cafe.db'
+if (-not (Test-Path $dbFile) -and (Test-Path $seedDb)) {
+    Write-Host '==> Setting up cafe menu and data...' -ForegroundColor Yellow
+    New-Item -ItemType Directory -Force $dataDir | Out-Null
+    Copy-Item $seedDb $dbFile -Force
+    Write-Host '    Loaded menu, products, and settings from backup.'
+} elseif (Test-Path $dbFile) {
+    Write-Host '==> Existing data found - keeping your current menu and bills.' -ForegroundColor Cyan
+}
+
 $exe = Join-Path $dest 'MeerCafePOS.exe'
 $shell = New-Object -ComObject WScript.Shell
 function New-Shortcut($path) {
